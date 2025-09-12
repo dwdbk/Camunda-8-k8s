@@ -1,0 +1,1947 @@
+# Camunda 8 ArgoCD Manifests Structure
+# This is a complete folder structure with all files
+
+# =============================================================================
+# Application Root - argocd-application.yaml
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: camunda8-dev
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/camunda8-k8s
+    targetRevision: HEAD
+    path: environments/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: camunda8-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+
+---
+# =============================================================================
+# environments/dev/values.yaml
+# =============================================================================
+# Global configuration for dev environment
+global:
+  image:
+    tag: "8.5.5"
+    pullPolicy: IfNotPresent
+  
+  # External PostgreSQL configuration
+  postgresql:
+    host: "postgres.example.com"
+    port: 5432
+    database: "camunda_dev"
+    username: "camunda_user"
+    # Secret reference for password
+    passwordSecret: "postgres-credentials"
+    passwordKey: "password"
+  
+  # External Elasticsearch configuration
+  elasticsearch:
+    host: "elasticsearch.example.com"
+    port: 9200
+    protocol: "https"
+    indexPrefix: "camunda-dev"
+    # Secret reference for credentials
+    usernameSecret: "elasticsearch-credentials"
+    usernameKey: "username"
+    passwordSecret: "elasticsearch-credentials"
+    passwordKey: "password"
+  
+  # Ingress configuration
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-dev"
+    tls:
+      enabled: true
+    domain: "dev.example.com"
+  
+  # Security
+  auth:
+    secret: "camunda-auth-dev"
+
+# Component-specific configurations
+zeebe:
+  replicas: 1
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  persistence:
+    size: "10Gi"
+    storageClass: "fast-ssd"
+
+operate:
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+tasklist:
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+identity:
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+optimize:
+  replicas: 1
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+connectors:
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+webModeler:
+  replicas: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+console:
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "250m"
+
+---
+# =============================================================================
+# environments/dev/kustomization.yaml
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ../../base/zeebe
+- ../../base/operate
+- ../../base/tasklist
+- ../../base/identity
+- ../../base/optimize
+- ../../base/connectors
+- ../../base/web-modeler
+- ../../base/console
+- secrets.yaml
+
+patchesStrategicMerge:
+- values.yaml
+
+namespace: camunda8-dev
+
+---
+# =============================================================================
+# environments/dev/secrets.yaml
+# =============================================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-credentials
+type: Opaque
+stringData:
+  password: "dev-postgres-password"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: elasticsearch-credentials
+type: Opaque
+stringData:
+  username: "elastic"
+  password: "dev-elastic-password"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: camunda-auth-dev
+type: Opaque
+stringData:
+  client-secret: "dev-client-secret-12345"
+  jwt-secret: "dev-jwt-secret-67890"
+
+---
+# =============================================================================
+# base/zeebe/deployment.yaml
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zeebe
+  labels:
+    app: zeebe
+    component: zeebe
+spec:
+  replicas: 1  # Will be overridden by values.yaml
+  selector:
+    matchLabels:
+      app: zeebe
+  template:
+    metadata:
+      labels:
+        app: zeebe
+        component: zeebe
+    spec:
+      containers:
+      - name: zeebe
+        image: camunda/zeebe:8.5.5
+        ports:
+        - name: gateway
+          containerPort: 26500
+        - name: command
+          containerPort: 26501
+        - name: internal
+          containerPort: 26502
+        - name: monitoring
+          containerPort: 9600
+        env:
+        - name: ZEEBE_BROKER_GATEWAY_ENABLE
+          value: "true"
+        - name: ZEEBE_BROKER_NETWORK_HOST
+          value: "0.0.0.0"
+        - name: ZEEBE_BROKER_CLUSTER_CLUSTERNAME
+          value: "zeebe-cluster"
+        - name: ZEEBE_BROKER_CLUSTER_NODEID
+          value: "0"
+        - name: ZEEBE_BROKER_CLUSTER_CLUSTERSIZE
+          value: "1"
+        - name: ZEEBE_BROKER_CLUSTER_REPLICATIONFACTOR
+          value: "1"
+        - name: ZEEBE_BROKER_CLUSTER_PARTITIONSCOUNT
+          value: "1"
+        volumeMounts:
+        - name: data
+          mountPath: /usr/local/zeebe/data
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: zeebe-data
+
+---
+# =============================================================================
+# base/zeebe/service.yaml
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: zeebe
+  labels:
+    app: zeebe
+spec:
+  type: ClusterIP
+  ports:
+  - name: gateway
+    port: 26500
+    targetPort: gateway
+  - name: command
+    port: 26501
+    targetPort: command
+  - name: internal
+    port: 26502
+    targetPort: internal
+  - name: monitoring
+    port: 9600
+    targetPort: monitoring
+  selector:
+    app: zeebe
+
+---
+# =============================================================================
+# base/zeebe/pvc.yaml
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zeebe-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: fast-ssd
+
+---
+# =============================================================================
+# base/zeebe/networkpolicy.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: zeebe
+spec:
+  podSelector:
+    matchLabels:
+      app: zeebe
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          component: camunda8
+    ports:
+    - protocol: TCP
+      port: 26500
+    - protocol: TCP
+      port: 26501
+  egress:
+  - {}
+
+---
+# =============================================================================
+# base/operate/deployment.yaml
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: operate
+  labels:
+    app: operate
+    component: operate
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: operate
+  template:
+    metadata:
+      labels:
+        app: operate
+        component: camunda8
+    spec:
+      containers:
+      - name: operate
+        image: camunda/operate:8.5.5
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: CAMUNDA_OPERATE_ZEEBE_GATEWAYADDRESS
+          value: "zeebe:26500"
+        - name: CAMUNDA_OPERATE_ELASTICSEARCH_URL
+          value: "https://elasticsearch.example.com:9200"
+        - name: CAMUNDA_OPERATE_ELASTICSEARCH_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-credentials
+              key: username
+        - name: CAMUNDA_OPERATE_ELASTICSEARCH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-credentials
+              key: password
+        - name: CAMUNDA_OPERATE_ELASTICSEARCH_INDEXPREFIX
+          value: "camunda-dev"
+        - name: SPRING_PROFILES_ACTIVE
+          value: "identity-auth"
+        - name: CAMUNDA_OPERATE_IDENTITY_BASEURL
+          value: "http://identity:8080"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+
+---
+# =============================================================================
+# base/operate/service.yaml
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: operate
+  labels:
+    app: operate
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: operate
+
+---
+# =============================================================================
+# base/operate/ingress.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: operate
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dev
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - operate.dev.example.com
+    secretName: operate-tls
+  rules:
+  - host: operate.dev.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: operate
+            port:
+              number: 8080
+
+---
+# =============================================================================
+# base/operate/networkpolicy.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: operate
+spec:
+  podSelector:
+    matchLabels:
+      app: operate
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: zeebe
+    ports:
+    - protocol: TCP
+      port: 26500
+  - to:
+    - podSelector:
+        matchLabels:
+          app: identity
+    ports:
+    - protocol: TCP
+      port: 8080
+  - {}  # Allow external PostgreSQL
+
+---
+# =============================================================================
+# base/console/deployment.yaml
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: console
+  labels:
+    app: console
+    component: console
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: console
+  template:
+    metadata:
+      labels:
+        app: console
+        component: camunda8
+    spec:
+      containers:
+      - name: console
+        image: camunda/console:8.5.5
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: CAMUNDA_CONSOLE_MANAGED_CLUSTERS_0_NAME
+          value: "local"
+        - name: CAMUNDA_CONSOLE_MANAGED_CLUSTERS_0_URL
+          value: "http://zeebe:26500"
+        - name: CAMUNDA_CONSOLE_MANAGED_CLUSTERS_0_OPERATE_URL
+          value: "http://operate:8080"
+        - name: CAMUNDA_CONSOLE_MANAGED_CLUSTERS_0_TASKLIST_URL
+          value: "http://tasklist:8080"
+        - name: CAMUNDA_CONSOLE_MANAGED_CLUSTERS_0_OPTIMIZE_URL
+          value: "http://optimize:8080"
+        - name: CAMUNDA_CONSOLE_MANAGED_CLUSTERS_0_MODELER_URL
+          value: "http://web-modeler-webapp:8080"
+        - name: SPRING_PROFILES_ACTIVE
+          value: "identity-auth"
+        - name: CAMUNDA_IDENTITY_BASEURL
+          value: "http://identity:8080"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+
+---
+# =============================================================================
+# base/console/service.yaml
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: console
+  labels:
+    app: console
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: console
+
+---
+# =============================================================================
+# base/console/ingress.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: console
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dev
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - console.dev.example.com
+    secretName: console-tls
+  rules:
+  - host: console.dev.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: console
+            port:
+              number: 8080
+
+---
+# =============================================================================
+# base/console/networkpolicy.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: console
+spec:
+  podSelector:
+    matchLabels:
+      app: console
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          component: camunda8
+    ports:
+    - protocol: TCP
+      port: 8080
+  - to:
+    - podSelector:
+        matchLabels:
+          app: identity
+    ports:
+    - protocol: TCP
+      port: 8080
+
+---
+# =============================================================================
+# environments/staging/values.yaml
+# =============================================================================
+# Global configuration for staging environment
+global:
+  image:
+    tag: "8.5.5"
+    pullPolicy: IfNotPresent
+  
+  # External PostgreSQL configuration
+  postgresql:
+    host: "postgres-staging.example.com"
+    port: 5432
+    database: "camunda_staging"
+    username: "camunda_user"
+    passwordSecret: "postgres-credentials"
+    passwordKey: "password"
+  
+  # External Elasticsearch configuration
+  elasticsearch:
+    host: "elasticsearch-staging.example.com"
+    port: 9200
+    protocol: "https"
+    indexPrefix: "camunda-staging"
+    usernameSecret: "elasticsearch-credentials"
+    usernameKey: "username"
+    passwordSecret: "elasticsearch-credentials"
+    passwordKey: "password"
+  
+  # Ingress configuration
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-staging"
+    tls:
+      enabled: true
+    domain: "staging.example.com"
+  
+  # Security
+  auth:
+    secret: "camunda-auth-staging"
+
+# Component-specific configurations for staging
+zeebe:
+  replicas: 2
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+  persistence:
+    size: "20Gi"
+    storageClass: "fast-ssd"
+
+operate:
+  replicas: 2
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+tasklist:
+  replicas: 2
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+identity:
+  replicas: 2
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+optimize:
+  replicas: 1
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+connectors:
+  replicas: 2
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+webModeler:
+  replicas: 2
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+console:
+  replicas: 2
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+---
+# =============================================================================
+# environments/prod/values.yaml
+# =============================================================================
+# Global configuration for production environment
+global:
+  image:
+    tag: "8.5.5"
+    pullPolicy: IfNotPresent
+  
+  # External PostgreSQL configuration
+  postgresql:
+    host: "postgres-prod.example.com"
+    port: 5432
+    database: "camunda_prod"
+    username: "camunda_user"
+    passwordSecret: "postgres-credentials"
+    passwordKey: "password"
+  
+  # External Elasticsearch configuration
+  elasticsearch:
+    host: "elasticsearch-prod.example.com"
+    port: 9200
+    protocol: "https"
+    indexPrefix: "camunda-prod"
+    usernameSecret: "elasticsearch-credentials"
+    usernameKey: "username"
+    passwordSecret: "elasticsearch-credentials"
+    passwordKey: "password"
+  
+  # Ingress configuration
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+    tls:
+      enabled: true
+    domain: "example.com"
+  
+  # Security
+  auth:
+    secret: "camunda-auth-prod"
+
+# Component-specific configurations for production
+zeebe:
+  replicas: 3
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "2000m"
+    limits:
+      memory: "8Gi"
+      cpu: "4000m"
+  persistence:
+    size: "50Gi"
+    storageClass: "premium-ssd"
+
+operate:
+  replicas: 3
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+tasklist:
+  replicas: 3
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+identity:
+  replicas: 3
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+optimize:
+  replicas: 2
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "2000m"
+    limits:
+      memory: "8Gi"
+      cpu: "4000m"
+
+connectors:
+  replicas: 3
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+webModeler:
+  replicas: 3
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+console:
+  replicas: 3
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+---
+# =============================================================================
+# Directory Structure Overview
+# =============================================================================
+
+# This manifest structure creates the following directory layout:
+#
+# camunda8-k8s/
+# ├── argocd-applications/
+# │   ├── camunda8-dev.yaml
+# │   ├── camunda8-staging.yaml
+# │   └── camunda8-prod.yaml
+# ├── environments/
+# │   ├── dev/
+# │   │   ├── values.yaml
+# │   │   ├── secrets.yaml
+# │   │   └── kustomization.yaml
+# │   ├── staging/
+# │   │   ├── values.yaml
+# │   │   ├── secrets.yaml (use external secret manager in real env)
+# │   │   └── kustomization.yaml
+# │   └── prod/
+# │       ├── values.yaml
+# │       ├── secrets.yaml (use external secret manager in real env)
+# │       └── kustomization.yaml
+# └── base/
+#     ├── zeebe/
+#     │   ├── deployment.yaml
+#     │   ├── service.yaml
+#     │   ├── pvc.yaml
+#     │   └── networkpolicy.yaml
+#     ├── operate/
+#     │   ├── deployment.yaml
+#     │   ├── service.yaml
+#     │   ├── ingress.yaml
+#     │   └── networkpolicy.yaml
+#     ├── tasklist/
+#     │   ├── deployment.yaml
+#     │   ├── service.yaml
+#     │   ├── ingress.yaml
+#     │   └── networkpolicy.yaml
+#     ├── identity/
+#     │   ├── deployment.yaml
+#     │   ├── service.yaml
+#     │   ├── ingress.yaml
+#     │   └── networkpolicy.yaml
+#     ├── optimize/
+#     │   ├── deployment.yaml
+#     │   ├── service.yaml
+#     │   ├── ingress.yaml
+#     │   └── networkpolicy.yaml
+#     ├── connectors/
+#     │   ├── deployment.yaml
+#     │   ├── service.yaml
+#     │   └── networkpolicy.yaml
+#     ├── web-modeler/
+#     │   ├── deployment.yaml
+#     │   ├── service.yaml
+#     │   ├── ingress.yaml
+#     │   └── networkpolicy.yaml
+#     └── console/
+#         ├── deployment.yaml
+#         ├── service.yaml
+#         ├── ingress.yaml
+#         └── networkpolicy.yaml
+
+---
+# =============================================================================
+# ArgoCD Applications for Each Environment
+# =============================================================================
+
+# argocd-applications/camunda8-dev.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: camunda8-dev
+  namespace: argocd
+  labels:
+    environment: dev
+    component: camunda8
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/camunda8-k8s
+    targetRevision: HEAD
+    path: environments/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: camunda8-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    - RespectIgnoreDifferences=true
+  ignoreDifferences:
+  - group: apps
+    kind: Deployment
+    jsonPointers:
+    - /spec/replicas
+
+---
+# argocd-applications/camunda8-staging.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: camunda8-staging
+  namespace: argocd
+  labels:
+    environment: staging
+    component: camunda8
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/camunda8-k8s
+    targetRevision: HEAD
+    path: environments/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: camunda8-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false  # Manual sync for staging
+    syncOptions:
+    - CreateNamespace=true
+    - RespectIgnoreDifferences=true
+
+---
+# argocd-applications/camunda8-prod.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: camunda8-prod
+  namespace: argocd
+  labels:
+    environment: prod
+    component: camunda8
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/camunda8-k8s
+    targetRevision: HEAD
+    path: environments/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: camunda8-prod
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    - RespectIgnoreDifferences=true
+  # No automated sync for production - manual only
+
+---
+# =============================================================================
+# Additional Kustomization Files for Each Environment
+# =============================================================================
+
+# environments/staging/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ../../base/zeebe
+- ../../base/operate
+- ../../base/tasklist
+- ../../base/identity
+- ../../base/optimize
+- ../../base/connectors
+- ../../base/web-modeler
+- ../../base/console
+- secrets.yaml
+
+patchesStrategicMerge:
+- values.yaml
+
+namespace: camunda8-staging
+
+images:
+- name: camunda/zeebe
+  newTag: "8.5.5"
+- name: camunda/operate
+  newTag: "8.5.5"
+- name: camunda/tasklist
+  newTag: "8.5.5"
+- name: camunda/identity
+  newTag: "8.5.5"
+- name: camunda/optimize
+  newTag: "8.5.5"
+- name: camunda/connectors-bundle
+  newTag: "8.5.5"
+- name: camunda/web-modeler-ee
+  newTag: "8.5.5"
+- name: camunda/web-modeler-ee-webapp
+  newTag: "8.5.5"
+- name: camunda/console
+  newTag: "8.5.5"
+
+---
+# environments/prod/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ../../base/zeebe
+- ../../base/operate
+- ../../base/tasklist
+- ../../base/identity
+- ../../base/optimize
+- ../../base/connectors
+- ../../base/web-modeler
+- ../../base/console
+- secrets.yaml
+
+patchesStrategicMerge:
+- values.yaml
+
+namespace: camunda8-prod
+
+images:
+- name: camunda/zeebe
+  newTag: "8.5.5"
+- name: camunda/operate
+  newTag: "8.5.5"
+- name: camunda/tasklist
+  newTag: "8.5.5"
+- name: camunda/identity
+  newTag: "8.5.5"
+- name: camunda/optimize
+  newTag: "8.5.5"
+- name: camunda/connectors-bundle
+  newTag: "8.5.5"
+- name: camunda/web-modeler-ee
+  newTag: "8.5.5"
+- name: camunda/web-modeler-ee-webapp
+  newTag: "8.5.5"
+- name: camunda/console
+  newTag: "8.5.5"
+
+---
+# =============================================================================
+# Secret Templates for External Secret Manager Integration
+# =============================================================================
+
+# For production/staging, replace inline secrets with ExternalSecrets
+# Example: environments/prod/external-secrets.yaml
+
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: postgres-credentials
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: SecretStore
+  target:
+    name: postgres-credentials
+    creationPolicy: Owner
+  data:
+  - secretKey: password
+    remoteRef:
+      key: camunda8/postgres
+      property: password
+
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: elasticsearch-credentials
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: SecretStore
+  target:
+    name: elasticsearch-credentials
+    creationPolicy: Owner
+  data:
+  - secretKey: username
+    remoteRef:
+      key: camunda8/elasticsearch
+      property: username
+  - secretKey: password
+    remoteRef:
+      key: camunda8/elasticsearch
+      property: password
+
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: camunda-auth-prod
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: vault-backend
+    kind: SecretStore
+  target:
+    name: camunda-auth-prod
+    creationPolicy: Owner
+  data:
+  - secretKey: client-secret
+    remoteRef:
+      key: camunda8/auth
+      property: client-secret
+  - secretKey: jwt-secret
+    remoteRef:
+      key: camunda8/auth
+      property: jwt-secret
+          app: zeebe
+    ports:
+    - protocol: TCP
+      port: 26500
+  - to:
+    - podSelector:
+        matchLabels:
+          app: identity
+    ports:
+    - protocol: TCP
+      port: 8080
+  - {}  # Allow external Elasticsearch
+
+---
+# =============================================================================
+# base/tasklist/deployment.yaml
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tasklist
+  labels:
+    app: tasklist
+    component: tasklist
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tasklist
+  template:
+    metadata:
+      labels:
+        app: tasklist
+        component: camunda8
+    spec:
+      containers:
+      - name: tasklist
+        image: camunda/tasklist:8.5.5
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: CAMUNDA_TASKLIST_ZEEBE_GATEWAYADDRESS
+          value: "zeebe:26500"
+        - name: CAMUNDA_TASKLIST_ELASTICSEARCH_URL
+          value: "https://elasticsearch.example.com:9200"
+        - name: CAMUNDA_TASKLIST_ELASTICSEARCH_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-credentials
+              key: username
+        - name: CAMUNDA_TASKLIST_ELASTICSEARCH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-credentials
+              key: password
+        - name: CAMUNDA_TASKLIST_ELASTICSEARCH_INDEXPREFIX
+          value: "camunda-dev"
+        - name: SPRING_PROFILES_ACTIVE
+          value: "identity-auth"
+        - name: CAMUNDA_TASKLIST_IDENTITY_BASEURL
+          value: "http://identity:8080"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+
+---
+# =============================================================================
+# base/tasklist/service.yaml
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: tasklist
+  labels:
+    app: tasklist
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: tasklist
+
+---
+# =============================================================================
+# base/tasklist/ingress.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tasklist
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dev
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - tasklist.dev.example.com
+    secretName: tasklist-tls
+  rules:
+  - host: tasklist.dev.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: tasklist
+            port:
+              number: 8080
+
+---
+# =============================================================================
+# base/tasklist/networkpolicy.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tasklist
+spec:
+  podSelector:
+    matchLabels:
+      app: tasklist
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: zeebe
+    ports:
+    - protocol: TCP
+      port: 26500
+  - to:
+    - podSelector:
+        matchLabels:
+          app: identity
+    ports:
+    - protocol: TCP
+      port: 8080
+  - {}  # Allow external Elasticsearch
+
+---
+# =============================================================================
+# base/identity/deployment.yaml
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity
+  labels:
+    app: identity
+    component: identity
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: identity
+  template:
+    metadata:
+      labels:
+        app: identity
+        component: camunda8
+    spec:
+      containers:
+      - name: identity
+        image: camunda/identity:8.5.5
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: IDENTITY_DATABASE_HOST
+          value: "postgres.example.com"
+        - name: IDENTITY_DATABASE_PORT
+          value: "5432"
+        - name: IDENTITY_DATABASE_NAME
+          value: "camunda_dev"
+        - name: IDENTITY_DATABASE_USERNAME
+          value: "camunda_user"
+        - name: IDENTITY_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+        - name: KEYCLOAK_CLIENTS_0_ID
+          value: "operate"
+        - name: KEYCLOAK_CLIENTS_0_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: camunda-auth-dev
+              key: client-secret
+        - name: KEYCLOAK_CLIENTS_1_ID
+          value: "tasklist"
+        - name: KEYCLOAK_CLIENTS_1_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: camunda-auth-dev
+              key: client-secret
+        - name: KEYCLOAK_CLIENTS_2_ID
+          value: "optimize"
+        - name: KEYCLOAK_CLIENTS_2_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: camunda-auth-dev
+              key: client-secret
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+
+---
+# =============================================================================
+# base/identity/service.yaml
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: identity
+  labels:
+    app: identity
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: identity
+
+---
+# =============================================================================
+# base/identity/ingress.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: identity
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dev
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - identity.dev.example.com
+    secretName: identity-tls
+  rules:
+  - host: identity.dev.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: identity
+            port:
+              number: 8080
+
+---
+# =============================================================================
+# base/identity/networkpolicy.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: identity
+spec:
+  podSelector:
+    matchLabels:
+      app: identity
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  - from:
+    - podSelector:
+        matchLabels:
+          component: camunda8
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - {}  # Allow external PostgreSQL
+
+---
+# =============================================================================
+# base/optimize/deployment.yaml
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: optimize
+  labels:
+    app: optimize
+    component: optimize
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: optimize
+  template:
+    metadata:
+      labels:
+        app: optimize
+        component: camunda8
+    spec:
+      containers:
+      - name: optimize
+        image: camunda/optimize:8.5.5
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: CAMUNDA_OPTIMIZE_ZEEBE_ENABLED
+          value: "true"
+        - name: CAMUNDA_OPTIMIZE_ZEEBE_NAME
+          value: "zeebe"
+        - name: CAMUNDA_OPTIMIZE_ZEEBE_GATEWAYADDRESS
+          value: "zeebe:26500"
+        - name: CAMUNDA_OPTIMIZE_ELASTICSEARCH_HOST
+          value: "elasticsearch.example.com"
+        - name: CAMUNDA_OPTIMIZE_ELASTICSEARCH_HTTP_PORT
+          value: "9200"
+        - name: CAMUNDA_OPTIMIZE_ELASTICSEARCH_SECURITY_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-credentials
+              key: username
+        - name: CAMUNDA_OPTIMIZE_ELASTICSEARCH_SECURITY_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-credentials
+              key: password
+        - name: CAMUNDA_OPTIMIZE_ELASTICSEARCH_INDEX_PREFIX
+          value: "camunda-dev"
+        - name: SPRING_PROFILES_ACTIVE
+          value: "ccsm"
+        - name: CAMUNDA_OPTIMIZE_IDENTITY_BASEURL
+          value: "http://identity:8080"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+
+---
+# =============================================================================
+# base/optimize/service.yaml
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: optimize
+  labels:
+    app: optimize
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: optimize
+
+---
+# =============================================================================
+# base/optimize/ingress.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: optimize
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dev
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - optimize.dev.example.com
+    secretName: optimize-tls
+  rules:
+  - host: optimize.dev.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: optimize
+            port:
+              number: 8080
+
+---
+# =============================================================================
+# base/optimize/networkpolicy.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: optimize
+spec:
+  podSelector:
+    matchLabels:
+      app: optimize
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: zeebe
+    ports:
+    - protocol: TCP
+      port: 26500
+  - to:
+    - podSelector:
+        matchLabels:
+          app: identity
+    ports:
+    - protocol: TCP
+      port: 8080
+  - {}  # Allow external Elasticsearch
+
+---
+# =============================================================================
+# base/connectors/deployment.yaml
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: connectors
+  labels:
+    app: connectors
+    component: connectors
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: connectors
+  template:
+    metadata:
+      labels:
+        app: connectors
+        component: camunda8
+    spec:
+      containers:
+      - name: connectors
+        image: camunda/connectors-bundle:8.5.5
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: ZEEBE_CLIENT_BROKER_GATEWAY-ADDRESS
+          value: "zeebe:26500"
+        - name: ZEEBE_CLIENT_SECURITY_PLAINTEXT
+          value: "true"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+
+---
+# =============================================================================
+# base/connectors/service.yaml
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: connectors
+  labels:
+    app: connectors
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: connectors
+
+---
+# =============================================================================
+# base/connectors/networkpolicy.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: connectors
+spec:
+  podSelector:
+    matchLabels:
+      app: connectors
+  policyTypes:
+  - Ingress
+  - Egress
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: zeebe
+    ports:
+    - protocol: TCP
+      port: 26500
+  - {}  # Allow external connections for connectors
+
+---
+# =============================================================================
+# base/web-modeler/deployment.yaml
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-modeler-rest
+  labels:
+    app: web-modeler-rest
+    component: web-modeler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web-modeler-rest
+  template:
+    metadata:
+      labels:
+        app: web-modeler-rest
+        component: camunda8
+    spec:
+      containers:
+      - name: web-modeler-rest
+        image: camunda/web-modeler-ee:8.5.5
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:postgresql://postgres.example.com:5432/camunda_dev"
+        - name: SPRING_DATASOURCE_USERNAME
+          value: "camunda_user"
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+        - name: CAMUNDA_MODELER_SECURITY_JWT_AUDIENCE_INTERNAL_API
+          value: "web-modeler-api"
+        - name: SPRING_PROFILES_ACTIVE
+          value: "identity-auth"
+        - name: CAMUNDA_IDENTITY_BASEURL
+          value: "http://identity:8080"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-modeler-webapp
+  labels:
+    app: web-modeler-webapp
+    component: web-modeler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web-modeler-webapp
+  template:
+    metadata:
+      labels:
+        app: web-modeler-webapp
+        component: camunda8
+    spec:
+      containers:
+      - name: web-modeler-webapp
+        image: camunda/web-modeler-ee-webapp:8.5.5
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: REST_API_URL
+          value: "http://web-modeler-rest:8080"
+        - name: ZEEBE_CLIENT_CONFIG_BROKER_GATEWAYADDRESS
+          value: "zeebe:26500"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+
+---
+# =============================================================================
+# base/web-modeler/service.yaml
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-modeler-rest
+  labels:
+    app: web-modeler-rest
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: web-modeler-rest
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-modeler-webapp
+  labels:
+    app: web-modeler-webapp
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: web-modeler-webapp
+
+---
+# =============================================================================
+# base/web-modeler/ingress.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-modeler
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dev
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - modeler.dev.example.com
+    secretName: web-modeler-tls
+  rules:
+  - host: modeler.dev.example.com
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: web-modeler-rest
+            port:
+              number: 8080
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: web-modeler-webapp
+            port:
+              number: 8080
+
+---
+# =============================================================================
+# base/web-modeler/networkpolicy.yaml
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-modeler
+spec:
+  podSelector:
+    matchLabels:
+      component: web-modeler
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  - from:
+    - podSelector:
+        matchLabels:
+          component: web-modeler
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          component: web-modeler
+    ports:
+    - protocol: TCP
+      port: 8080
+  - to:
+    - podSelector:
+        matchLabels
