@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zeebe-gateway
+  labels:
+    app: zeebe-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zeebe-gateway
+  template:
+    metadata:
+      labels:
+        app: zeebe-gateway
+    spec:
+      containers:
+        - name: zeebe-gateway
+          image: docker.io/camunda/zeebe:8.4.19
+          env:
+            - name: ZEEBE_BROKER_CLUSTER_PARTITIONSCOUNT
+              value: "1"
+            - name: ZEEBE_BROKER_CLUSTER_REPLICATIONFACTOR
+              value: "1"
+            - name: ZEEBE_BROKER_CLUSTER_CLUSTERSIZE
+              value: "1"
+            - name: ZEEBE_BROKER_GATEWAY_ENABLE
+              value: "true"
+            - name: ZEEBE_BROKER_GATEWAY_CLUSTER_CONTACT_POINT
+              value: "zeebe-broker:26502"
+            - name: ZEEBE_BROKER_GATEWAY_CLUSTER_MEMBER_ID
+              value: "zeebe-gateway"
+          ports:
+            - name: gateway
+              containerPort: 26500
+            - name: command
+              containerPort: 26501
+            - name: internal
+              containerPort: 26502

@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: connectors
+  labels:
+    app: connectors
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: connectors
+  template:
+    metadata:
+      labels:
+        app: connectors
+    spec:
+      containers:
+        - name: connectors
+          image: docker.io/camunda/connectors-bundle:8.4.19
+          env:
+            - name: ZEEBE_CLIENT_BROKER_GATEWAY-ADDRESS
+              value: "zeebe-gateway:26500"
+            - name: SPRING_DATASOURCE_URL
+              value: "[POSTGRES_URL]"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: connectors-db-secret
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: connectors-db-secret
+                  key: POSTGRES_PASSWORD
+          ports:
+            - name: http
+              containerPort: 8080

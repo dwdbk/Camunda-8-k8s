@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-modeler-websockets
+  labels:
+    app: web-modeler-websockets
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web-modeler-websockets
+  template:
+    metadata:
+      labels:
+        app: web-modeler-websockets
+    spec:
+      containers:
+        - name: web-modeler-websockets
+          image: registry.camunda.cloud/web-modeler-ee/modeler-websockets:8.4.18
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: SPRING_DATASOURCE_URL
+              value: "[POSTGRES_URL]"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: web-modeler-websockets-db-secret
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: web-modeler-websockets-db-secret
+                  key: POSTGRES_PASSWORD
+          ports:
+            - name: http
+              containerPort: 8080

@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: zeebe-broker-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: zeebe-broker
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: zeebe-gateway
+      ports:
+        - protocol: TCP
+          port: 26501
+        - protocol: TCP
+          port: 26502

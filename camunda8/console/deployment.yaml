@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: console
+  labels:
+    app: console
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: console
+  template:
+    metadata:
+      labels:
+        app: console
+    spec:
+      containers:
+        - name: console
+          image: docker.io/camunda/console:8.4.21
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: CAMUNDA_CONSOLE_ZEEBE_GATEWAYADDRESS
+              value: "zeebe-gateway:26500"
+            - name: CAMUNDA_CONSOLE_ELASTICSEARCH_URL
+              value: "[ELASTICSEARCH_URL]"
+            - name: CAMUNDA_CONSOLE_ELASTICSEARCH_INDEXPREFIX
+              value: "[ELASTIC_INDEX]"
+            - name: SPRING_DATASOURCE_URL
+              value: "[POSTGRES_URL]"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: console-db-secret
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: console-db-secret
+                  key: POSTGRES_PASSWORD
+            - name: CAMUNDA_CONSOLE_AUTH_PROVIDER_BACKEND_URL
+              value: "[KEYCLOAK_URL]"
+          ports:
+            - name: http
+              containerPort: 8080

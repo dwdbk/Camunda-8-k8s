@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: optimize-config
+data:
+  application.yaml: |
+    spring:
+      profiles:
+        active: prod
+    camunda:
+      optimize:
+        zeebe:
+          gatewayAddress: zeebe-gateway:26500
+        elasticsearch:
+          url: "[ELASTICSEARCH_URL]"
+          indexPrefix: "[ELASTIC_INDEX]"
+    spring.datasource:
+      url: "[POSTGRES_URL]"
+      username: "[POSTGRES_USER]"
+      password: "[POSTGRES_PASSWORD]"

@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zeebe
+  labels:
+    app: zeebe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zeebe
+  template:
+    metadata:
+      labels:
+        app: zeebe
+    spec:
+      containers:
+        - name: zeebe
+          image: docker.io/camunda/zeebe:8.4.19
+          env:
+            - name: ZEEBE_BROKER_CLUSTER_PARTITIONSCOUNT
+              value: "1"
+            - name: ZEEBE_BROKER_CLUSTER_REPLICATIONFACTOR
+              value: "1"
+            - name: ZEEBE_BROKER_CLUSTER_CLUSTERSIZE
+              value: "1"
+            - name: ZEEBE_BROKER_GATEWAY_ENABLE
+              value: "true"
+            - name: ZEEBE_BROKER_DATA_DISKUSAGECOMMANDWATERMARK
+              value: "0.9"
+            - name: ZEEBE_BROKER_DATA_DISKUSAGEREPLICATIONWATERMARK
+              value: "0.95"
+            - name: ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_CLASSNAME
+              value: "io.camunda.zeebe.exporter.ElasticsearchExporter"
+            - name: ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_URL
+              value: "[ELASTICSEARCH_URL]"
+            - name: ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_INDEX
+              value: "[ELASTIC_INDEX]"
+            - name: ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_BULK_SIZE
+              value: "1000"
+            - name: ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_BULK_DELAY
+              value: "5"
+          ports:
+            - name: gateway
+              containerPort: 26500
+            - name: command
+              containerPort: 26501
+            - name: internal
+              containerPort: 26502
+          volumeMounts:
+            - name: zeebe-data
+              mountPath: /usr/local/zeebe/data
+      volumes:
+        - name: zeebe-data
+          emptyDir: {}
