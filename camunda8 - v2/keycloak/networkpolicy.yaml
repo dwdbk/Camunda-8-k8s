@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keycloak-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: keycloak
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: identity
+        - podSelector:
+            matchLabels:
+              app: operate
+        - podSelector:
+            matchLabels:
+              app: tasklist
+        - podSelector:
+            matchLabels:
+              app: optimize
+        - podSelector:
+            matchLabels:
+              app: console
+      ports:
+        - protocol: TCP
+          port: 8080

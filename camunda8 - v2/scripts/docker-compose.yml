@@ -1,0 +1,228 @@
+version: '3.8'
+
+# Camunda 8.4.2 Local Development Stack
+# This is for local testing only - not for production use
+
+services:
+  # Zeebe (Workflow Engine)
+  zeebe:
+    image: docker.io/camunda/zeebe:8.4.19
+    container_name: camunda-zeebe
+    environment:
+      - ZEEBE_BROKER_CLUSTER_PARTITIONSCOUNT=1
+      - ZEEBE_BROKER_CLUSTER_REPLICATIONFACTOR=1
+      - ZEEBE_BROKER_CLUSTER_CLUSTERSIZE=1
+      - ZEEBE_BROKER_GATEWAY_ENABLE=true
+      - ZEEBE_BROKER_DATA_DISKUSAGECOMMANDWATERMARK=0.9
+      - ZEEBE_BROKER_DATA_DISKUSAGEREPLICATIONWATERMARK=0.95
+      - ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_CLASSNAME=io.camunda.zeebe.exporter.ElasticsearchExporter
+      - ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_URL=http://elasticsearch:9200
+      - ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_INDEX=camunda-record
+      - ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_BULK_SIZE=1000
+      - ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_BULK_DELAY=5
+    ports:
+      - "26500:26500"  # Gateway
+      - "26501:26501"  # Command
+      - "26502:26502"  # Internal
+    volumes:
+      - zeebe_data:/usr/local/zeebe/data
+    networks:
+      - camunda-network
+
+  # Operate (Process Monitoring)
+  operate:
+    image: docker.io/camunda/operate:8.4.20
+    container_name: camunda-operate
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - CAMUNDA_OPERATE_ZEEBE_GATEWAYADDRESS=zeebe:26500
+      - CAMUNDA_OPERATE_ELASTICSEARCH_URL=http://elasticsearch:9200
+      - CAMUNDA_OPERATE_ELASTICSEARCH_INDEXPREFIX=camunda-record
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/camunda
+      - SPRING_DATASOURCE_USERNAME=camunda
+      - SPRING_DATASOURCE_PASSWORD=camunda
+    ports:
+      - "8081:8080"
+    depends_on:
+      - zeebe
+      - postgres
+      - elasticsearch
+    networks:
+      - camunda-network
+
+  # Tasklist (Task Management)
+  tasklist:
+    image: docker.io/camunda/tasklist:8.4.21
+    container_name: camunda-tasklist
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - CAMUNDA_TASKLIST_ZEEBE_GATEWAYADDRESS=zeebe:26500
+      - CAMUNDA_TASKLIST_ELASTICSEARCH_URL=http://elasticsearch:9200
+      - CAMUNDA_TASKLIST_ELASTICSEARCH_INDEXPREFIX=camunda-record
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/camunda
+      - SPRING_DATASOURCE_USERNAME=camunda
+      - SPRING_DATASOURCE_PASSWORD=camunda
+    ports:
+      - "8082:8080"
+    depends_on:
+      - zeebe
+      - postgres
+      - elasticsearch
+    networks:
+      - camunda-network
+
+  # Optimize (Process Optimization)
+  optimize:
+    image: docker.io/camunda/optimize:8.4.18
+    container_name: camunda-optimize
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - CAMUNDA_OPTIMIZE_ZEEBE_GATEWAYADDRESS=zeebe:26500
+      - CAMUNDA_OPTIMIZE_ELASTICSEARCH_URL=http://elasticsearch:9200
+      - CAMUNDA_OPTIMIZE_ELASTICSEARCH_INDEXPREFIX=camunda-record
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/camunda
+      - SPRING_DATASOURCE_USERNAME=camunda
+      - SPRING_DATASOURCE_PASSWORD=camunda
+    ports:
+      - "8083:8080"
+    depends_on:
+      - zeebe
+      - postgres
+      - elasticsearch
+    networks:
+      - camunda-network
+
+  # Identity (Identity Management)
+  identity:
+    image: docker.io/camunda/identity:8.4.21
+    container_name: camunda-identity
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - CAMUNDA_IDENTITY_ZEEBE_GATEWAYADDRESS=zeebe:26500
+      - CAMUNDA_IDENTITY_ELASTICSEARCH_URL=http://elasticsearch:9200
+      - CAMUNDA_IDENTITY_ELASTICSEARCH_INDEXPREFIX=camunda-record
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/camunda
+      - SPRING_DATASOURCE_USERNAME=camunda
+      - SPRING_DATASOURCE_PASSWORD=camunda
+      - CAMUNDA_IDENTITY_AUTH_PROVIDER_BACKEND_URL=http://keycloak:8080
+    ports:
+      - "8084:8080"
+    depends_on:
+      - zeebe
+      - postgres
+      - elasticsearch
+      - keycloak
+    networks:
+      - camunda-network
+
+  # Console (Management Console)
+  console:
+    image: docker.io/camunda/console:8.4.21
+    container_name: camunda-console
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - CAMUNDA_CONSOLE_ZEEBE_GATEWAYADDRESS=zeebe:26500
+      - CAMUNDA_CONSOLE_ELASTICSEARCH_URL=http://elasticsearch:9200
+      - CAMUNDA_CONSOLE_ELASTICSEARCH_INDEXPREFIX=camunda-record
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/camunda
+      - SPRING_DATASOURCE_USERNAME=camunda
+      - SPRING_DATASOURCE_PASSWORD=camunda
+      - CAMUNDA_CONSOLE_AUTH_PROVIDER_BACKEND_URL=http://keycloak:8080
+    ports:
+      - "8085:8080"
+    depends_on:
+      - zeebe
+      - postgres
+      - elasticsearch
+      - keycloak
+    networks:
+      - camunda-network
+
+  # Connectors Bundle
+  connectors:
+    image: docker.io/camunda/connectors-bundle:8.4.19
+    container_name: camunda-connectors
+    environment:
+      - ZEEBE_CLIENT_BROKER_GATEWAY-ADDRESS=zeebe:26500
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/camunda
+      - SPRING_DATASOURCE_USERNAME=camunda
+      - SPRING_DATASOURCE_PASSWORD=camunda
+    ports:
+      - "8086:8080"
+    depends_on:
+      - zeebe
+      - postgres
+    networks:
+      - camunda-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: camunda-postgres
+    environment:
+      - POSTGRES_DB=camunda
+      - POSTGRES_USER=camunda
+      - POSTGRES_PASSWORD=camunda
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - camunda-network
+
+  # Elasticsearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: camunda-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - camunda-network
+
+  # Kibana
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: camunda-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - camunda-network
+
+  # Keycloak
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0.5
+    container_name: camunda-keycloak
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://postgres:5432/keycloak
+      - KC_DB_USERNAME=camunda
+      - KC_DB_PASSWORD=camunda
+    command: start --http-enabled --hostname-strict=false --hostname-strict-https=false
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - camunda-network
+
+volumes:
+  zeebe_data:
+  postgres_data:
+  elasticsearch_data:
+
+networks:
+  camunda-network:
+    driver: bridge

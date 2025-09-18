@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-modeler-restapi
+  labels:
+    app: web-modeler-restapi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web-modeler-restapi
+  template:
+    metadata:
+      labels:
+        app: web-modeler-restapi
+    spec:
+      containers:
+        - name: web-modeler-restapi
+          image: docker.io/camunda/web-modeler-restapi:8.7.9
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: SPRING_DATASOURCE_URL
+              value: "[POSTGRES_URL]"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: web-modeler-db-secret
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: web-modeler-db-secret
+                  key: POSTGRES_PASSWORD
+            - name: ZEEBE_CLIENT_BROKER_GATEWAY-ADDRESS
+              value: "zeebe-gateway:26500"
+          ports:
+            - name: http
+              containerPort: 8080

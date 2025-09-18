@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: optimize
+  labels:
+    app: optimize
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: optimize
+  template:
+    metadata:
+      labels:
+        app: optimize
+    spec:
+      containers:
+        - name: optimize
+          image: docker.io/camunda/optimize:8.7.9
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: CAMUNDA_OPTIMIZE_ZEEBE_GATEWAYADDRESS
+              value: "zeebe-gateway:26500"
+            - name: CAMUNDA_OPTIMIZE_ELASTICSEARCH_URL
+              value: "[ELASTICSEARCH_URL]"
+            - name: CAMUNDA_OPTIMIZE_ELASTICSEARCH_INDEXPREFIX
+              value: "[ELASTIC_INDEX]"
+            - name: SPRING_DATASOURCE_URL
+              value: "[POSTGRES_URL]"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: optimize-db-secret
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: optimize-db-secret
+                  key: POSTGRES_PASSWORD
+          ports:
+            - name: http
+              containerPort: 8080

@@ -1,0 +1,63 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - zeebe/deployment.yaml
+  - zeebe/service.yaml
+  - zeebe/networkpolicy.yaml
+  - zeebe/secret.yaml
+  - zeebe/configmap.yaml
+  - zeebe-broker/deployment.yaml
+  - zeebe-broker/service.yaml
+  - zeebe-broker/networkpolicy.yaml
+  - zeebe-gateway/deployment.yaml
+  - zeebe-gateway/service.yaml
+  - zeebe-gateway/networkpolicy.yaml
+  - operate/deployment.yaml
+  - operate/service.yaml
+  - operate/networkpolicy.yaml
+  - operate/secret.yaml
+  - operate/configmap.yaml
+  - tasklist/deployment.yaml
+  - tasklist/service.yaml
+  - tasklist/networkpolicy.yaml
+  - tasklist/secret.yaml
+  - tasklist/configmap.yaml
+  - optimize/deployment.yaml
+  - optimize/service.yaml
+  - optimize/networkpolicy.yaml
+  - optimize/secret.yaml
+  - optimize/configmap.yaml
+  - identity/deployment.yaml
+  - identity/service.yaml
+  - identity/networkpolicy.yaml
+  - identity/secret.yaml
+  - identity/configmap.yaml
+  - connectors/deployment.yaml
+  - connectors/service.yaml
+  - connectors/networkpolicy.yaml
+  - connectors/secret.yaml
+  - console/deployment.yaml
+  - console/service.yaml
+  - console/networkpolicy.yaml
+  - console/secret.yaml
+  - console/configmap.yaml
+  - web-modeler/restapi-deployment.yaml
+  - web-modeler/restapi-service.yaml
+  - web-modeler/webapp-deployment.yaml
+  - web-modeler/webapp-service.yaml
+  - web-modeler/websockets-deployment.yaml
+  - web-modeler/websockets-service.yaml
+  - web-modeler/networkpolicy.yaml
+  - web-modeler/secrets.yaml
+  - keycloak/deployment.yaml
+  - keycloak/service.yaml
+  - keycloak/networkpolicy.yaml
+  - keycloak/secrets.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: camunda8
+  app.kubernetes.io/version: "8.7"
+
+namespace: camunda8

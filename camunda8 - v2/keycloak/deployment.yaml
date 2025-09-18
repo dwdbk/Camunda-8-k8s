@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: docker.io/camunda/keycloak:26.3.2
+          args:
+            - start
+            - --db=postgres
+            - --hostname-strict=false
+            - --hostname-strict-https=false
+            - --proxy=edge
+            - --http-enabled=true
+            - --import-realm
+          env:
+            - name: KEYCLOAK_ADMIN
+              value: "[KEYCLOAK_ADMIN_USER]"
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin-secret
+                  key: password
+            - name: KC_DB_URL_HOST
+              value: "[POSTGRES_HOST]"
+            - name: KC_DB_URL_DATABASE
+              value: "[POSTGRES_DATABASE]"
+            - name: KC_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-db-secret
+                  key: POSTGRES_USER
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-db-secret
+                  key: POSTGRES_PASSWORD
+          ports:
+            - name: http
+              containerPort: 8080

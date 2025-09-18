@@ -1,0 +1,123 @@
+# Camunda 8.7 Configuration Template
+# Copy this file to values.yaml and replace all placeholder values
+
+# PostgreSQL Configuration
+postgres:
+  url: "jdbc:postgresql://postgres-host:5432/camunda"
+  user: "camunda_user"
+  password: "camunda_password"
+
+# Elasticsearch Configuration
+elasticsearch:
+  url: "http://elasticsearch:9200"
+  index: "camunda-record"
+
+# Keycloak Configuration
+keycloak:
+  url: "http://keycloak:80"
+  admin_user: "admin"
+  admin_password: "admin_password"
+  postgres_host: "postgres-host"
+  postgres_database: "keycloak"
+
+# Component Replicas
+replicas:
+  zeebe: 1
+  zeebe_broker: 1
+  zeebe_gateway: 1
+  operate: 1
+  tasklist: 1
+  optimize: 1
+  identity: 1
+  console: 1
+  connectors: 1
+  web_modeler_restapi: 1
+  web_modeler_webapp: 1
+  web_modeler_websockets: 1
+
+# Resource Limits
+resources:
+  zeebe:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  zeebe_broker:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  zeebe_gateway:
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+  operate:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  tasklist:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  optimize:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  identity:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  console:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  connectors:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  web_modeler_restapi:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  web_modeler_webapp:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  web_modeler_websockets:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
